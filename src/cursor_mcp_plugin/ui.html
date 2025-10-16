@@ -167,6 +167,52 @@
       .operation-error {
         color: #ff9999;
       }
+
+      /* === Minimize/Shrink UX additions === */
+      .header-spacer {
+        flex: 1;
+      }
+      .min-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: 12px;
+      }
+      .mini-btn {
+        background-color: #2a2a2a;
+        border: 1px solid #444;
+        color: #e0e0e0;
+        padding: 6px 10px;
+        border-radius: 6px;
+        margin: 0; /* override global margin */
+        font-size: 12px;
+        height: 28px;
+      }
+      .mini-btn:hover {
+        background-color: #333;
+      }
+      /* When the iframe is shrunk (≈72x40), show only an "Open" button */
+      @media (max-width: 90px) {
+        .header-logo,
+        .header-text,
+        .tabs,
+        .tab-content,
+        .mini-btn.shrink,
+        .mini-btn.hide {
+          display: none !important;
+        }
+        .mini-btn.restore {
+          display: inline-flex !important;
+        }
+        body {
+          padding: 8px; /* tighter padding for tiny mode */
+        }
+      }
+      /* By default, hide 'Open' (restore) unless in tiny mode */
+      .mini-btn.restore {
+        display: none;
+      }
+      /* === End Minimize UX === */
     </style>
   </head>
   <body>
@@ -181,6 +227,14 @@
         <div class="header-text">
           <h1>Cursor Talk To Figma Plugin</h1>
           <p>Connect Figma to Cursor AI using MCP</p>
+        </div>
+
+        <!-- Minimize/Shrink controls (in header, right-aligned) -->
+        <div class="header-spacer"></div>
+        <div class="min-controls">
+          <button id="cttf-shrink" class="mini-btn shrink" title="Shrink to tiny launcher">—</button>
+          <button id="cttf-hide" class="mini-btn hide" title="Hide window">Hide</button>
+          <button id="cttf-restore" class="mini-btn restore" title="Restore">Open</button>
         </div>
       </div>
 
@@ -254,6 +308,19 @@
     </div>
 
     <script>
+      // === Minimize/Shrink message helpers ===
+      const postToPlugin = (type) =>
+        parent.postMessage({ pluginMessage: { type } }, "*");
+
+      // Wire minimize buttons
+      addEventListener("DOMContentLoaded", () => {
+        const $ = (id) => document.getElementById(id);
+        $("cttf-shrink")?.addEventListener("click", () => postToPlugin("shrink"));
+        $("cttf-hide")?.addEventListener("click", () => postToPlugin("hide"));
+        $("cttf-restore")?.addEventListener("click", () => postToPlugin("restore"));
+      });
+      // === End Minimize/Shrink helpers ===
+
       // WebSocket connection state
       const state = {
         connected: false,
