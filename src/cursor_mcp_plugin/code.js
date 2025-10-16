@@ -1,6 +1,78 @@
 // This is the main code file for the Cursor MCP Figma plugin
 // It handles Figma API commands
 
+// =============== Minimize/Shrink UX additions (non-breaking) ===============
+/** Window modes */
+const NORMAL_SIZE = { width: 360, height: 520 };
+const SHRUNK_SIZE = { width: 72, height: 40 };
+const MODE_KEY = 'uiMode'; // 'normal' | 'shrunk' | 'hidden'
+
+async function getMode() {
+  try { return (await figma.clientStorage.getAsync(MODE_KEY)) || 'normal'; }
+  catch { return 'normal'; }
+}
+async function setMode(m) {
+  try { await figma.clientStorage.setAsync(MODE_KEY, m); } catch {}
+}
+
+function showNormal() {
+  figma.showUI(__html__, { visible: true, ...NORMAL_SIZE });
+}
+function showShrunk() {
+  figma.showUI(__html__, { visible: true, ...SHRUNK_SIZE });
+}
+function hideUi() {
+  if (figma.ui) figma.ui.hide();
+}
+
+async function applyMode(mode) {
+  if (mode === 'normal') showNormal();
+  if (mode === 'shrunk') showShrunk();
+  if (mode === 'hidden') {
+    // Ensure iframe exists at least once, then hide it.
+    if (!figma.ui) showShrunk();
+    hideUi();
+  }
+  await setMode(mode);
+  // Always expose a relaunch entry so users can restore from right panel.
+  try { figma.root.setRelaunchData({ open: 'Open Cursor Talk to Figma MCP' }); } catch {}
+}
+
+// Menu commands from manifest.json
+(async () => {
+  if (figma.command === 'restore') { showNormal(); await setMode('normal'); return; }
+  if (figma.command === 'shrink')  { showShrunk(); await setMode('shrunk'); return; }
+  if (figma.command === 'hide')    {
+    if (!figma.ui) showShrunk();
+    hideUi(); await setMode('hidden'); return;
+  }
+})();
+
+// Handle clicks on the relaunch button ("Open") in the right panel
+figma.on('run', async ({ command }) => {
+  if (command === 'open') { showNormal(); await setMode('normal'); }
+});
+
+// Messages from ui.html buttons
+function wireUiMinimizeHandlers() {
+  if (!figma.ui) return;
+  figma.ui.onmessage = async (msg) => {
+    if (!msg || !msg.type) return;
+    if (msg.type === 'shrink') {
+      figma.ui.resize(SHRUNK_SIZE.width, SHRUNK_SIZE.height);
+      await setMode('shrunk');
+    } else if (msg.type === 'restore') {
+      figma.ui.show();
+      figma.ui.resize(NORMAL_SIZE.width, NORMAL_SIZE.height);
+      await setMode('normal');
+    } else if (msg.type === 'hide') {
+      figma.ui.hide();
+      await setMode('hidden');
+    }
+  };
+}
+// ===========================================================================
+
 // Plugin state
 const state = {
   serverPort: 3055, // Default port
@@ -51,7 +123,13 @@ function sendProgressUpdate(
 }
 
 // Show UI
-figma.showUI(__html__, { width: 350, height: 450 });
+// figma.showUI(__html__, { width: 350, height: 450 });
+// Replace the *single* figma.showUI(...) call with this block:
+(async () => {
+  const saved = await getMode();
+  await applyMode(saved);
+  wireUiMinimizeHandlers();
+})();
 
 // Plugin commands from UI
 figma.ui.onmessage = async (msg) => {
